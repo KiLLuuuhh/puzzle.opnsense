@@ -83,8 +83,11 @@ class OPNsenseModuleConfig:
     _config_map: dict
     _module_name: str
     _opnsense_version: str
+    _check_mode: bool
 
-    def __init__(self, module_name: str, path: str = "/conf/config.xml"):
+    def __init__(
+        self, module_name: str, path: str = "/conf/config.xml", check_mode: bool = False
+    ):
         """
         Initializes the OPNsenseModuleConfig class.
 
@@ -96,7 +99,7 @@ class OPNsenseModuleConfig:
         self._config_path = path
         self._config_xml_tree = self._load_config()
         self._opnsense_version = version_utils.get_opnsense_version()
-
+        self._check_mode = check_mode
         try:
             version_map: dict = module_index.VERSION_MAP[self._opnsense_version]
         except KeyError as ke:
@@ -147,7 +150,7 @@ class OPNsenseModuleConfig:
         """
         if exc_type:
             raise exc_type(f"Exception occurred: {exc_val}")
-        if self.changed:
+        if self.changed and not self._check_mode:
             raise RuntimeError("Config has changed. Cannot exit without saving.")
 
     def save(self) -> bool:
@@ -279,7 +282,7 @@ class OPNsenseModuleConfig:
         # return list
         return configure_functions
 
-    def apply_settings(self) -> List[str]:
+    def apply_settings(self) -> List[dict]:
         """
         Retrieves and applies configuration-specific PHP requirements and configure functions for
         a given module.
@@ -320,11 +323,17 @@ class OPNsenseModuleConfig:
         # run configure functions with all required php dependencies and store their output.
         for value in configure_functions.values():
             meta_dict = {"function": value["name"], "params": value["configure_params"]}
-            result_dict = opnsense_utils.run_function(
-                php_requirements=php_requirements,
-                configure_function=value["name"],
-                configure_params=value["configure_params"],
-            )
+            if not self._check_mode:
+                result_dict = opnsense_utils.run_function(
+                    php_requirements=php_requirements,
+                    configure_function=value["name"],
+                    configure_params=value["configure_params"],
+                )
+            else:
+                result_dict = {
+                    "check_mode": "Ansible running in check mode, does not execute configure functions",
+                    "rc": 0
+                }
             cmd_output.append({**meta_dict, **result_dict})
 
         return cmd_output
