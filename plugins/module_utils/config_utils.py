@@ -105,13 +105,15 @@ class OPNsenseModuleConfig:
         except KeyError as ke:
             raise UnsupportedOPNsenseVersion(
                 f"OPNsense version '{self._opnsense_version}' not supported "
-                "by puzzle.opnsense collection"
+                "by puzzle.opnsense collection.\n"
+                f"Supported versions are {list(module_index.VERSION_MAP.keys())}"
             ) from ke
 
         if self._module_name not in version_map:
             raise UnsupportedVersionForModule(
                 f"Module '{self._module_name}' not supported "
-                f"for OPNsense version '{self._opnsense_version}'."
+                f"for OPNsense version '{self._opnsense_version}'.\n"
+                f"Supported modules are {list(version_map.keys())}"
             )
 
         self._config_map = version_map[self._module_name]
@@ -191,7 +193,8 @@ class OPNsenseModuleConfig:
         if setting_name not in self._config_map:
             raise UnsupportedModuleSettingError(
                 f"Setting '{setting_name}' is not supported in module '{self._module_name}' "
-                f"for OPNsense version '{self._opnsense_version}'"
+                f"for OPNsense version '{self._opnsense_version}'."
+                f"Supported settings are {[setting for setting in self._config_map.keys() if setting not in ['php_requirements', 'configure_functions']  ]}"
             )
         return self._config_xml_tree.find(self._config_map[setting_name])
 
@@ -332,7 +335,7 @@ class OPNsenseModuleConfig:
             else:
                 result_dict = {
                     "check_mode": "Ansible running in check mode, does not execute configure functions",
-                    "rc": 0
+                    "rc": 0,
                 }
             cmd_output.append({**meta_dict, **result_dict})
 
