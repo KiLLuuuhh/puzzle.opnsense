@@ -31,7 +31,7 @@ class OPNSenseConfigUsageError(Exception):
 class MissingConfigDefinitionForModuleError(Exception):
     """
     Exception raised when a required config definition is missing for a module in the
-    plugins.module_utils.module_index.VERSION_MAP. Required configs must include
+    ansible_collections.puzzle.opnsense.plugins.module_utils.module_index.VERSION_MAP. Required configs must include
     'php_requirements' and 'configure_functions'.
     """
 
@@ -39,7 +39,7 @@ class MissingConfigDefinitionForModuleError(Exception):
 class ModuleMisconfigurationError(Exception):
     """
     Exception raised when module configurations are not in the expected format as defined in the
-    plugins.module_utils.module_index.VERSION_MAP.
+    ansible_collections.puzzle.opnsense.plugins.module_utils.module_index.VERSION_MAP.
     """
 
 
@@ -152,6 +152,7 @@ class OPNsenseModuleConfig:
         """
         if exc_type:
             raise exc_type(f"Exception occurred: {exc_val}")
+
         if self.changed and not self._check_mode:
             raise RuntimeError("Config has changed. Cannot exit without saving.")
 
@@ -217,7 +218,7 @@ class OPNsenseModuleConfig:
         if php_requirements is None:
             raise MissingConfigDefinitionForModuleError(
                 f"Module '{self._module_name}' has no php_requirements defined in "
-                f"the plugins.module_utils.module_index.VERSION_MAP for given "
+                f"the ansible_collections.puzzle.opnsense.plugins.module_utils.module_index.VERSION_MAP for given "
                 f"OPNsense version '{self._opnsense_version}'."
             )
 
@@ -269,7 +270,7 @@ class OPNsenseModuleConfig:
         if configure_functions is None:
             raise MissingConfigDefinitionForModuleError(
                 f"Module '{self._module_name}' has no configure_functions defined in "
-                f"the plugins.module_utils.module_index.VERSION_MAP for given "
+                f"the ansible_collections.puzzle.opnsense.plugins.module_utils.module_index.VERSION_MAP for given "
                 f"OPNsense version '{self._opnsense_version}'."
             )
 

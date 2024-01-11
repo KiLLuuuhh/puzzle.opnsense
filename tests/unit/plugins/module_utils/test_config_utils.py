@@ -1,6 +1,6 @@
 # Copyright: (c) 2023, Puzzle ITC
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
-"""Tests for the plugins.module_utils.config_utils module."""
+"""Tests for the ansible_collections.puzzle.opnsense.plugins.module_utils.config_utils module."""
 
 # This is probably intentional and required for the fixture
 # pylint: disable=redefined-outer-name,unused-argument,protected-access
@@ -179,7 +179,7 @@ def test_php_requirements_must_be_present(sample_config_path):
         with pytest.raises(
             MissingConfigDefinitionForModuleError,
             match=r"Module 'missing_php_requirements' has no php_requirements defined in "
-            "the plugins.module_utils.module_index.VERSION_MAP for given "
+            "the ansible_collections.puzzle.opnsense.plugins.module_utils.module_index.VERSION_MAP for given "
             "OPNsense version 'OPNsense Test'.",
         ):
             _val = new_config._get_php_requirements()
@@ -199,7 +199,7 @@ def test_config_functions_must_be_present(sample_config_path):
         with pytest.raises(
             MissingConfigDefinitionForModuleError,
             match=r"Module 'missing_configure_functions' has no configure_functions defined in "
-            "the plugins.module_utils.module_index.VERSION_MAP for given "
+            "the ansible_collections.puzzle.opnsense.plugins.module_utils.module_index.VERSION_MAP for given "
             "OPNsense version 'OPNsense Test'.",
         ):
             _val = new_config._get_configure_functions()
