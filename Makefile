@@ -1,6 +1,6 @@
 # requires this collection to be in a directory following this path convention:
 # some_dir/ansible_collections/puzzle/opnsense
-COLLECTION_PATH=$(realpath ../../../):~/.ansible/collections:/usr/share/ansible/collections
+
 
 build-doc:
 	rm -rf dest && mkdir --mode 0700 dest && \
@@ -14,7 +14,7 @@ test-unit:
 
 # runs a little faster because only one version is checked
 test-unit-dev:
-	pipenv run ansible-test units --coverage --python 3.10
+	pipenv run ansible-test units --coverage --python 3.11
 
 test-sanity:
 	pipenv run ansible-test sanity --docker
@@ -26,3 +26,12 @@ test-molecule:
 	pipenv run molecule test --all
 
 test: test-sanity test-unit test-coverage-report test-molecule
+
+
+local:
+	find plugins -type f -name "*.py" -exec sed -i 's/ansible_collections\.puzzle\.opnsense\.plugins\./plugins\./g' {} +
+	find tests -type f -name "*.py" -exec sed -i 's/ansible_collections\.puzzle\.opnsense\.plugins\./plugins\./g' {} +
+
+ansible:
+	find plugins -type f -name "*.py" -exec sed -i 's/plugins\./ansible_collections\.puzzle\.opnsense\.plugins\./g' {} +
+	find tests -type f -name "*.py" -exec sed -i 's/plugins\./ansible_collections\.puzzle\.opnsense\.plugins\./g' {} +
