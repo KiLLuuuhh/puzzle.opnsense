@@ -3,6 +3,7 @@
   hosts: all
   become: true
   tasks:
+
     - name: Converge - Create simple test rule
       puzzle.opnsense.firewall_rules:
         interface: "lan"
@@ -10,3 +11,30 @@
         action: pass
         target_port: 100
         state: present
+      register: create_rule
+
+    - name: Converge - Create another test rule
+      puzzle.opnsense.firewall_rules:
+        interface: "lan"
+        description: "Another Test Rule"
+        action: pass
+        target_ip: 192.168.1.1/24
+        target_port: 22
+        state: present
+
+    - name: Converge - Create a third test rule
+      puzzle.opnsense.firewall_rules:
+        interface: "lan"
+        description: "The third Test Rule"
+        action: pass
+        target_port: 22
+        state: present
+
+    - name: Converge - Delete the test rule
+      puzzle.opnsense.firewall_rules:
+        interface: "lan"
+        description: "New Test Rule to Delete"
+        action: pass
+        target_port: 100
+        state: absent
+      register: delete_rule
