@@ -85,9 +85,7 @@ class OPNsenseModuleConfig:
     _opnsense_version: str
     _check_mode: bool
 
-    def __init__(
-        self, module_name: str, path: str = "/conf/config.xml", check_mode: bool = False
-    ):
+    def __init__(self, module_name: str, path: str = "/conf/config.xml", check_mode: bool = False):
         """
         Initializes the OPNsenseModuleConfig class.
 
@@ -165,9 +163,7 @@ class OPNsenseModuleConfig:
         """
 
         if self.changed:
-            tree: ElementTree.ElementTree = ElementTree.ElementTree(
-                self._config_xml_tree
-            )
+            tree: ElementTree.ElementTree = ElementTree.ElementTree(self._config_xml_tree)
             tree.write(self._config_path, encoding="utf-8", xml_declaration=True)
             self._config_xml_tree = self._load_config()
             return True
@@ -195,7 +191,7 @@ class OPNsenseModuleConfig:
             raise UnsupportedModuleSettingError(
                 f"Setting '{setting_name}' is not supported in module '{self._module_name}' "
                 f"for OPNsense version '{self._opnsense_version}'."
-                f"Supported settings are {[setting for setting in self._config_map.keys() if setting not in ['php_requirements', 'configure_functions']  ]}"
+                f"Supported settings are {[setting for setting in self._config_map.keys() if setting not in ['php_requirements', 'configure_functions']]}"
             )
         return self._config_xml_tree.find(self._config_map[setting_name])
 
@@ -262,9 +258,7 @@ class OPNsenseModuleConfig:
             Functionality depends on accurate and complete version_map.
         """
 
-        configure_functions: Optional[dict] = self._config_map.get(
-            "configure_functions"
-        )
+        configure_functions: Optional[dict] = self._config_map.get("configure_functions")
 
         # enforce presence of configure_functions in the VERSION_MAP
         if configure_functions is None:
