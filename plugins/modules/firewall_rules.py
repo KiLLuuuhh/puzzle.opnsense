@@ -235,22 +235,22 @@ options:
             type: bool
     destination:
         description:
-          - Specifies the source configuration.
+          - Specifies the destination configuration.
         type: dict
         suboptions:
           address:
             description:
-              - The IP address of the source.
+              - The IP address of the destination.
             type: str
             default: any
           network:
             description:
-              - The network of the source.
+              - The network of the destination.
             type: str
             default: any
           port:
             description:
-              - The port of the source.
+              - The port of the destination.
             type: str
             default: any
           invert:
@@ -274,7 +274,7 @@ options:
         required: false
         type: str
     state:
-        description: Weather rule should be added or removed.
+        description: Whether rule should be added or removed.
         required: false
         type: str
         default: present
