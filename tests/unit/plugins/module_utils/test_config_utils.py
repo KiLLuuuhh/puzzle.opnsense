@@ -14,6 +14,7 @@ from tempfile import NamedTemporaryFile
 from typing import List, Dict
 from unittest.mock import patch, MagicMock
 from xml.etree.ElementTree import Element
+from xml.etree import ElementTree
 
 import pytest
 from ansible_collections.puzzle.opnsense.plugins.module_utils.config_utils import (
@@ -23,6 +24,16 @@ from ansible_collections.puzzle.opnsense.plugins.module_utils.config_utils impor
     ModuleMisconfigurationError,
     MissingConfigDefinitionForModuleError,
     UnsupportedVersionForModule,
+    OPNSenseBaseEntry,
+)
+
+from ansible_collections.puzzle.opnsense.plugins.module_utils import (
+    xml_utils,
+)
+
+
+from ansible_collections.puzzle.opnsense.plugins.module_utils.firewall_alias_utils import (
+    FirewallAlias,
 )
 
 # Test version map for OPNsense versions and modules
@@ -61,6 +72,36 @@ TEST_VERSION_MAP = {
         "test_module_4": {
             "hasync_parent": "hasync",
             "remote_system_username": "hasync/username",
+            "php_requirements": ["req_1", "req_2"],
+            "configure_functions": {
+                "test_configure_function": {
+                    "name": "test_configure_function",
+                    "configure_params": ["param_1"],
+                },
+            },
+        },
+        "test_module_5": {
+            "alias": "Alias",
+            "php_requirements": ["req_1", "req_2"],
+            "configure_functions": {
+                "test_configure_function": {
+                    "name": "test_configure_function",
+                    "configure_params": ["param_1"],
+                },
+            },
+        },
+        "test_module_6": {
+            "rules": "filter",
+            "php_requirements": ["req_1", "req_2"],
+            "configure_functions": {
+                "test_configure_function": {
+                    "name": "test_configure_function",
+                    "configure_params": ["param_1"],
+                },
+            },
+        },
+        "interfaces_assignments": {
+            "interfaces": "interfaces",
             "php_requirements": ["req_1", "req_2"],
             "configure_functions": {
                 "test_configure_function": {
@@ -110,12 +151,155 @@ TEST_XML: str = """<?xml version="1.0"?>
             <hostname>test_name</hostname>
             <timezone>test_timezone</timezone>
         </system>
+        <interfaces>
+            <wan>
+                <if>em2</if>
+                <ipaddr>dhcp</ipaddr>
+                <dhcphostname/>
+                <mtu/>
+                <subnet/>
+                <gateway/>
+                <media/>
+                <mediaopt/>
+                <blockbogons>1</blockbogons>
+                <ipaddrv6>dhcp6</ipaddrv6>
+                <dhcp6-ia-pd-len>0</dhcp6-ia-pd-len>
+                <blockpriv>1</blockpriv>
+                <descr>WAN</descr>
+                <lock>1</lock>
+            </wan>
+            <lan>
+                <if>em1</if>
+                <descr>LAN</descr>
+                <enable>1</enable>
+                <lock>1</lock>
+                <spoofmac/>
+                <blockbogons>1</blockbogons>
+                <ipaddr>192.168.56.10</ipaddr>
+                <subnet>21</subnet>
+                <ipaddrv6>track6</ipaddrv6>
+                <track6-interface>wan</track6-interface>
+                <track6-prefix-id>0</track6-prefix-id>
+            </lan>
+            <opt1>
+                <if>em3</if>
+                <descr>DMZ</descr>
+                <spoofmac/>
+                <lock>1</lock>
+            </opt1>
+            <opt2>
+                <if>em0</if>
+                <descr>VAGRANT</descr>
+                <enable>1</enable>
+                <lock>1</lock>
+                <spoofmac/>
+                <ipaddr>dhcp</ipaddr>
+                <dhcphostname/>
+                <alias-address/>
+                <alias-subnet>32</alias-subnet>
+                <dhcprejectfrom/>
+                <adv_dhcp_pt_timeout/>
+                <adv_dhcp_pt_retry/>
+                <adv_dhcp_pt_select_timeout/>
+                <adv_dhcp_pt_reboot/>
+                <adv_dhcp_pt_backoff_cutoff/>
+                <adv_dhcp_pt_initial_interval/>
+                <adv_dhcp_pt_values>SavedCfg</adv_dhcp_pt_values>
+                <adv_dhcp_send_options/>
+                <adv_dhcp_request_options/>
+                <adv_dhcp_required_options/>
+                <adv_dhcp_option_modifiers/>
+                <adv_dhcp_config_advanced/>
+                <adv_dhcp_config_file_override/>
+            <adv_dhcp_config_file_override_path/>
+            </opt2>
+            <lo0>
+                <internal_dynamic>1</internal_dynamic>
+                <descr>Loopback</descr>
+                <enable>1</enable>
+                <if>lo0</if>
+                <ipaddr>127.0.0.1</ipaddr>
+                <ipaddrv6>::1</ipaddrv6>
+                <subnet>8</subnet>
+                <subnetv6>128</subnetv6>
+                <type>none</type>
+                <virtual>1</virtual>
+            </lo0>
+            <openvpn>
+                <internal_dynamic>1</internal_dynamic>
+                <enable>1</enable>
+                <if>openvpn</if>
+                <descr>OpenVPN</descr>
+                <type>group</type>
+                <virtual>1</virtual>
+                <networks/>
+            </openvpn>
+        </interfaces>
         <syslog>
         </syslog>
         <settings>
             <one>1</one>
             <two>2</two>
         </settings>
+        <filter>
+            <rule uuid="9c7ecb2c-49f3-4750-bc67-d5b666541999">
+                <type>pass</type>
+                <interface>wan</interface>
+                <ipprotocol>inet</ipprotocol>
+                <statetype>keep state</statetype>
+                <descr>Allow SSH access</descr>
+                <protocol>tcp</protocol>
+                <source>
+                   <any/>
+                </source>
+                <destination>
+                   <any/>
+                   <port>22</port>
+                </destination>
+            </rule>
+            <rule>
+                <type>pass</type>
+                <interface>wan</interface>
+                <ipprotocol>inet</ipprotocol>
+                <statetype>keep state</statetype>
+                <descr>Allow SSH access</descr>
+                <protocol>tcp</protocol>
+                <source>
+                   <any/>
+                </source>
+                <destination>
+                   <any/>
+                   <port>22</port>
+                </destination>
+                <extra>
+                    this is an extra attribute
+                </extra>
+            </rule>
+        </filter>
+        <Alias version="1.0.0">
+            <alias uuid="ad0fd5d4-6797-4521-9ee4-df3e16de31d0">
+                <enabled>1</enabled>
+                <name>host_test</name>
+                <type>host</type>
+                <proto/>
+                <interface/>
+                <counters>0</counters>
+                <updatefreq/>
+                <content>10.0.0.1</content>
+                <description>host_test</description>
+            </alias>
+            <alias uuid="3fc15914-8492-4a67-b990-aefd08d1c6a4">
+                <enabled>1</enabled>
+                <name>network_test</name>
+                <type>network</type>
+                <proto/>
+                <interface/>
+                <counters>0</counters>
+                <updatefreq/>
+                <content>192.168.0.0</content>
+                <description>network_test</description>
+            </alias>
+        </Alias>
         <hasync>
             <username />
         </hasync>
@@ -575,4 +759,227 @@ def test_success_set_on_empty_leaf_node(sample_config_path):
     ) as new_config:
         new_config.set("test", "remote_system_username")
         assert new_config.get("remote_system_username").text == "test"
+        new_config.save()
+
+
+def test_multiple_get_setting(sample_config_path):
+    """ """
+    with OPNsenseModuleConfig(
+        module_name="test_module",
+        config_context_names=["test_module_5"],
+        path=sample_config_path,
+        check_mode=False,
+    ) as new_config:
+        assert (
+            new_config.get_entries_as_objects(setting_name="alias")[0].name
+            == "host_test"
+        )
+
+        new_config.save()
+
+
+def test_model_registry(sample_config_path):
+    """ """
+    with OPNsenseModuleConfig(
+        module_name="test_module_5",
+        config_context_names=["test_module_5", "test_module_6"],
+        path=sample_config_path,
+        check_mode=False,
+    ) as new_config:
+        # check if model_registry is available
+        assert new_config.model_registry
+
+        # alias len tests
+        assert len(new_config.model_registry["test_module_5"]["alias"]) == 2
+
+        # alias integrity tests
+        assert new_config.model_registry["test_module_5"]["alias"][0].tag == "alias"
+
+        # alias find tests
+        test_find_alias = new_config.find(name="host_test")
+
+        # alias object tests
+        assert test_find_alias.enabled == True
+        assert test_find_alias.name == "host_test"
+        assert test_find_alias.type == "host"
+        assert test_find_alias.proto is None
+        assert test_find_alias.interface is None
+        assert test_find_alias.counters == "0"
+        assert test_find_alias.updatefreq is None
+        assert test_find_alias.content == "10.0.0.1"
+        assert test_find_alias.description == "host_test"
+
+        # alias update tests
+        update_existing_alias: OPNSenseBaseEntry = OPNSenseBaseEntry(
+            name="host_test", type="host", description="new_description"
+        )
+
+        test_update_existing_alias = new_config.find(name="host_test")
+
+        assert test_update_existing_alias.description == "host_test"
+
+        new_config.create_or_update(
+            module="test_module_5",
+            opnsense_object=update_existing_alias,
+            uniqueness="name",
+        )
+
+        test_update_existing_alias = new_config.find(name="host_test")
+
+        assert test_update_existing_alias.description == "new_description"
+
+        assert len(new_config.model_registry["test_module_5"]["alias"]) == 2
+
+        # alias delete tests
+        delete_existing_alias = new_config.find(name="host_test")
+
+        new_config.delete(
+            module="test_module_5", tag="alias", opnsense_object=delete_existing_alias
+        )
+
+        assert len(new_config.model_registry["test_module_5"]["alias"]) == 1
+
+        # rule len tests
+        assert len(new_config.model_registry["test_module_6"]["rule"]) == 2
+
+        # rule integrity tests
+        assert new_config.model_registry["test_module_6"]["rule"][0].tag == "rule"
+
+        # rule find tests
+        test_find_rule = new_config.find(interface="wan")
+
+        # rule object tests
+        assert test_find_rule.type == "pass"
+        assert test_find_rule.interface == "wan"
+        assert test_find_rule.ipprotocol == "inet"
+        assert test_find_rule.statetype == "keep state"
+        assert test_find_rule.descr == "Allow SSH access"
+        assert test_find_rule.protocol == "tcp"
+
+        # to be discussed
+        assert test_find_rule.source["any"] is None
+        assert test_find_rule.destination["any"] is None
+        assert test_find_rule.destination["port"] == "22"
+
+        # rule update tests
+        update_existing_rule: OPNSenseBaseEntry = OPNSenseBaseEntry(
+            interface="wan", type="pass", descr="New Allow SSH access Description"
+        )
+
+        test_update_existing_rule = new_config.find(interface="wan")
+
+        assert test_update_existing_rule.descr == "Allow SSH access"
+
+        new_config.create_or_update(
+            module="test_module_6",
+            opnsense_object=update_existing_rule,
+            uniqueness="interface",
+        )
+
+        test_update_existing_rule = new_config.find(interface="wan")
+
+        assert update_existing_rule.descr == "New Allow SSH access Description"
+
+        # rule delete tests
+        delete_existing_rule = new_config.find(interface="wan")
+
+        new_config.delete(
+            module="test_module_6", tag="rule", opnsense_object=delete_existing_rule
+        )
+
+        assert len(new_config.model_registry["test_module_6"]["rule"]) == 1
+
+        new_config.save()
+
+
+def test_model_registry_firewall_alias_without_set(sample_config_path):
+    """ """
+    with OPNsenseModuleConfig(
+        module_name="test_module_5",
+        config_context_names=["test_module_5", "test_module_6"],
+        path=sample_config_path,
+        check_mode=False,
+    ) as config:
+        assert config.model_registry
+
+        # alias len tests
+        assert len(config.model_registry["test_module_5"]["alias"]) == 2
+
+        # alias find tests
+        test_new_firewall_alias: OPNSenseBaseEntry = OPNSenseBaseEntry(
+            name="host_test_1",
+            type="host",
+            description="some random description",
+            tag="alias",
+        )
+
+        test_new_firewall_alias.tag = "alias"
+
+        config.create_or_update(
+            module="test_module_5",
+            opnsense_object=test_new_firewall_alias,
+            uniqueness="name",
+        )
+
+        assert len(config.model_registry["test_module_5"]["alias"]) == 3
+
+        assert config.changed
+
+        config.save()
+
+    with OPNsenseModuleConfig(
+        module_name="test_module_5",
+        config_context_names=["test_module_5", "test_module_6"],
+        path=sample_config_path,
+        check_mode=False,
+    ) as new_config:
+        assert len(new_config.model_registry["test_module_5"]["alias"]) == 3
+
+
+def test_firewall_alias_from_ansible_module_params(sample_config_path):
+    """ """
+
+    test_params: dict = {
+        "name": "test_alias",
+        "type": "host",
+        "description": "Test Alias",
+        "enabled": True,
+        "content": ["8.8.8.8-9.9.9.9", "TestHost", "192.168.0.0"],
+    }
+
+    with OPNsenseModuleConfig(
+        module_name="test_module_5",
+        config_context_names=["test_module_5", "test_module_6"],
+        path=sample_config_path,
+        check_mode=False,
+    ) as config:
+        new_alias: OPNSenseBaseEntry = OPNSenseBaseEntry.from_ansible_module_params(
+            test_params
+        )
+        new_alias.tag = "alias"
+
+        config.create_or_update(
+            module="test_module_5",
+            opnsense_object=new_alias,
+            uniqueness="name",
+        )
+
+        assert config.changed
+
+        config.save()
+
+    with OPNsenseModuleConfig(
+        module_name="test_module_5",
+        config_context_names=["test_module_5", "test_module_6"],
+        path=sample_config_path,
+        check_mode=False,
+    ) as new_config:
+        new_alias: OPNSenseBaseEntry = new_config.find(name="test_alias")
+
+        assert new_alias.enabled == True
+        assert new_alias.name == "test_alias"
+        assert new_alias.type == "host"
+        assert new_alias.content == ["8.8.8.8-9.9.9.9", "TestHost", "192.168.0.0"]
+        assert new_alias.description == "Test Alias"
+
         new_config.save()
