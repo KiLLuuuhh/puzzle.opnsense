@@ -26,6 +26,7 @@ from ansible_collections.puzzle.opnsense.plugins.module_utils.config_utils impor
     UnsupportedVersionForModule,
     OPNSenseBaseEntry,
 )
+from xml.etree.ElementTree import ElementTree, fromstring
 
 from ansible_collections.puzzle.opnsense.plugins.module_utils import (
     xml_utils,
@@ -983,3 +984,227 @@ def test_firewall_alias_from_ansible_module_params(sample_config_path):
         assert new_alias.description == "Test Alias"
 
         new_config.save()
+
+
+TEST_XML: str = """<?xml version="1.0"?>
+    <opnsense>
+        <system>
+            <hostname>test_name</hostname>
+            <timezone>test_timezone</timezone>
+        </system>
+        <interfaces>
+            <wan>
+                <if>em2</if>
+                <ipaddr>dhcp</ipaddr>
+                <dhcphostname/>
+                <mtu/>
+                <subnet/>
+                <gateway/>
+                <media/>
+                <mediaopt/>
+                <blockbogons>1</blockbogons>
+                <ipaddrv6>dhcp6</ipaddrv6>
+                <dhcp6-ia-pd-len>0</dhcp6-ia-pd-len>
+                <blockpriv>1</blockpriv>
+                <descr>WAN</descr>
+                <lock>1</lock>
+            </wan>
+            <lan>
+                <if>em1</if>
+                <descr>LAN</descr>
+                <enable>1</enable>
+                <lock>1</lock>
+                <spoofmac/>
+                <blockbogons>1</blockbogons>
+                <ipaddr>192.168.56.10</ipaddr>
+                <subnet>21</subnet>
+                <ipaddrv6>track6</ipaddrv6>
+                <track6-interface>wan</track6-interface>
+                <track6-prefix-id>0</track6-prefix-id>
+            </lan>
+            <opt1>
+                <if>em3</if>
+                <descr>DMZ</descr>
+                <spoofmac/>
+                <lock>1</lock>
+            </opt1>
+            <opt2>
+                <if>em0</if>
+                <descr>VAGRANT</descr>
+                <enable>1</enable>
+                <lock>1</lock>
+                <spoofmac/>
+                <ipaddr>dhcp</ipaddr>
+                <dhcphostname/>
+                <alias-address/>
+                <alias-subnet>32</alias-subnet>
+                <dhcprejectfrom/>
+                <adv_dhcp_pt_timeout/>
+                <adv_dhcp_pt_retry/>
+                <adv_dhcp_pt_select_timeout/>
+                <adv_dhcp_pt_reboot/>
+                <adv_dhcp_pt_backoff_cutoff/>
+                <adv_dhcp_pt_initial_interval/>
+                <adv_dhcp_pt_values>SavedCfg</adv_dhcp_pt_values>
+                <adv_dhcp_send_options/>
+                <adv_dhcp_request_options/>
+                <adv_dhcp_required_options/>
+                <adv_dhcp_option_modifiers/>
+                <adv_dhcp_config_advanced/>
+                <adv_dhcp_config_file_override/>
+            <adv_dhcp_config_file_override_path/>
+            </opt2>
+            <lo0>
+                <internal_dynamic>1</internal_dynamic>
+                <descr>Loopback</descr>
+                <enable>1</enable>
+                <if>lo0</if>
+                <ipaddr>127.0.0.1</ipaddr>
+                <ipaddrv6>::1</ipaddrv6>
+                <subnet>8</subnet>
+                <subnetv6>128</subnetv6>
+                <type>none</type>
+                <virtual>1</virtual>
+            </lo0>
+            <openvpn>
+                <internal_dynamic>1</internal_dynamic>
+                <enable>1</enable>
+                <if>openvpn</if>
+                <descr>OpenVPN</descr>
+                <type>group</type>
+                <virtual>1</virtual>
+                <networks/>
+            </openvpn>
+        </interfaces>
+        <syslog>
+        </syslog>
+        <settings>
+            <one>1</one>
+            <two>2</two>
+        </settings>
+        <filter>
+            <rule uuid="9c7ecb2c-49f3-4750-bc67-d5b666541999">
+                <type>pass</type>
+                <interface>wan</interface>
+                <ipprotocol>inet</ipprotocol>
+                <statetype>keep state</statetype>
+                <descr>Allow SSH access</descr>
+                <protocol>tcp</protocol>
+                <source>
+                   <any/>
+                </source>
+                <destination>
+                   <any/>
+                   <port>22</port>
+                </destination>
+            </rule>
+            <rule>
+                <type>pass</type>
+                <interface>wan</interface>
+                <ipprotocol>inet</ipprotocol>
+                <statetype>keep state</statetype>
+                <descr>Allow SSH access</descr>
+                <protocol>tcp</protocol>
+                <source>
+                   <any/>
+                </source>
+                <destination>
+                   <any/>
+                   <port>22</port>
+                </destination>
+                <extra>
+                    this is an extra attribute
+                </extra>
+            </rule>
+        </filter>
+        <Alias version="1.0.0">
+            <alias uuid="ad0fd5d4-6797-4521-9ee4-df3e16de31d0">
+                <enabled>1</enabled>
+                <name>host_test</name>
+                <type>host</type>
+                <proto/>
+                <interface/>
+                <counters>0</counters>
+                <updatefreq/>
+                <content>10.0.0.1</content>
+                <description>host_test</description>
+            </alias>
+            <alias uuid="3fc15914-8492-4a67-b990-aefd08d1c6a4">
+                <enabled>1</enabled>
+                <name>network_test</name>
+                <type>network</type>
+                <proto/>
+                <interface/>
+                <counters>0</counters>
+                <updatefreq/>
+                <content>192.168.0.0</content>
+                <description>network_test</description>
+            </alias>
+        </Alias>
+        <hasync>
+            <username />
+        </hasync>
+    </opnsense>
+    """
+
+
+class GenericParentClass:
+    def __init__(self, tag):
+        self.tag = tag
+        self.children = []
+
+    def add_child(self, child):
+        self.children.append(child)
+
+class GenericChildClass:
+    def __init__(self, tag, text=None):
+        self.tag = tag
+        self.text = text if text is not None else ""  # Handle None as empty string
+
+class ParentWithChildrenAsKwargs:
+    def __init__(self, **kwargs):
+        # Accept all keyword arguments
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+class ConfigSet:
+    def __init__(self, xml_string):
+        self.root = self._load_config(xml_string)
+        self.structure = self._parse_elements(self.root)
+
+    def _load_config(self, xml_string: str):
+        # Parse the XML string and return the root element
+        return ElementTree(fromstring(xml_string)).getroot()
+
+    def _parse_elements(self, element):
+        parent_obj = GenericParentClass(element.tag)
+
+        # Check if the element has children
+        if len(element):
+            # Loop through each child element
+            kwargs = {}  # Use a dictionary, not a list
+            for sub_element in element:
+                if len(sub_element):  # If it has child elements, recurse
+                    child_obj = self._parse_elements(sub_element)
+                    parent_obj.add_child(child_obj)  # Add the child to the parent
+                else:  # If it's a leaf node, add its data as an attribute
+                    kwargs[sub_element.tag] = sub_element.text  # Add to the dictionary
+            # If this element has child elements (and no leaf nodes), create a ParentWithChildrenAsKwargs
+            if kwargs:
+                # Create a ParentWithChildrenAsKwargs and pass all tags as attributes
+                child_obj = ParentWithChildrenAsKwargs(**kwargs)
+                parent_obj.add_child(child_obj)  # Add the child to the parent
+        else:
+            # If no children (leaf node), just store the text content
+            parent_obj = GenericChildClass(element.tag, element.text)
+
+        return parent_obj
+
+def test_init(sample_config_path):
+
+    test = ConfigSet(xml_string=TEST_XML)
+
+    assert test.structure.children[0].children[0].hostname == "test_name"
+    assert test.structure.children[0].children[0].timezone == "test_timezone"
+    assert test.structure.children[1].children[0].children[0].ipaddr == "dhcp"
+    assert test.structure.children[1].children[0].children[0].blockbogons == "1"
