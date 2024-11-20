@@ -152,9 +152,9 @@ TEST_XML: str = """<?xml version="1.0"?>
             <hostname>test_name</hostname>
             <timezone>test_timezone</timezone>
         </system>
-        <interfaces>
-            <wan>
-                <if>em2</if>
+        <interfaces> # GenericParentClass
+            <wan> # GenericParentClass
+                <if>em2</if> # GenericChildClass
                 <ipaddr>dhcp</ipaddr>
                 <dhcphostname/>
                 <mtu/>
@@ -1148,113 +1148,68 @@ TEST_XML: str = """<?xml version="1.0"?>
     """
 
 
-class GenericParentClass:
-    def __init__(self, tag):
+class GenericNodeClass:
+    def __init__(self, tag, text=None):
         self.tag = tag
+        self.text = text if text is not None else ""  # Handle None as empty string
         self.children = []
 
     def add_child(self, child):
         self.children.append(child)
 
-class GenericChildClass:
-    def __init__(self, tag, text=None):
-        self.tag = tag
-        self.text = text if text is not None else ""  # Handle None as empty string
+    def __getattr__(self, key):
+        """
+        Allows direct attribute access, e.g., parent["ipaddr"]
+        """
 
-class ParentWithChildrenAsKwargs:
-    def __init__(self, **kwargs):
-        # Accept all keyword arguments
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+        for child in self.children:
+            if key == child.tag:
+                if not len(child.children):
+                    return child.text
+                return child
+
+        raise AttributeError(f"object has no Attribute with the name {key}")
+
 
 class ConfigSet:
     def __init__(self, xml_string):
         self.root = self._load_config(xml_string)
         self.structure = self._parse_elements(self.root)
-        self.normalized_structure = self._normalize()
 
     def _load_config(self, xml_string: str):
         # Parse the XML string and return the root element
         return ElementTree(fromstring(xml_string)).getroot()
 
     def _parse_elements(self, element):
-        parent_obj = GenericParentClass(element.tag)
+        parent_obj = GenericNodeClass(element.tag)
 
         # Check if the element has children
         if len(element):
-            # Loop through each child element
-            kwargs = {}  # Use a dictionary, not a list
+
             for sub_element in element:
-                if len(sub_element):  # If it has child elements, recurse
-                    child_obj = self._parse_elements(sub_element)
-                    parent_obj.add_child(child_obj)  # Add the child to the parent
-                else:  # If it's a leaf node, add its data as an attribute
-                    kwargs[sub_element.tag] = sub_element.text  # Add to the dictionary
-            # If this element has child elements (and no leaf nodes), create a ParentWithChildrenAsKwargs
-            if kwargs:
-                # Create a ParentWithChildrenAsKwargs and pass all tags as attributes
-                child_obj = ParentWithChildrenAsKwargs(**kwargs)
+                child_obj = self._parse_elements(sub_element)
                 parent_obj.add_child(child_obj)  # Add the child to the parent
         else:
             # If no children (leaf node), just store the text content
-            parent_obj = GenericChildClass(element.tag, element.text)
+            parent_obj = GenericNodeClass(element.tag, element.text)
 
         return parent_obj
-
-    def _normalize(self):
-        """
-        Normalize the structure to a dictionary-like format for easy access.
-        This allows access like configset["interfaces"]["wan"].ipaddr.
-        """
-        def normalize_object(obj):
-            if isinstance(obj, GenericChildClass):  # Leaf node
-                return obj.text
-            elif isinstance(obj, ParentWithChildrenAsKwargs):  # Parent with kwargs
-                normalized = {}
-                # Iterate over all attributes of ParentWithChildrenAsKwargs
-                for key, value in obj.__dict__.items():
-                    # Normalize nested objects recursively
-                    normalized[key] = value
-                return normalized
-            elif isinstance(obj, GenericParentClass):  # Parent without kwargs
-                normalized = {}
-                for child in obj.children:
-                    if isinstance(child, ParentWithChildrenAsKwargs):
-                        # Process the child as a dictionary directly (as it has attributes instead of a `tag`)
-                        normalized.update(normalize_object(child))
-                    else:
-                        # Process normally (i.e., for GenericChildClass or other objects with .tag attribute)
-                        normalized[child.tag] = normalize_object(child)
-                return normalized
-            return None  # In case the object doesn't match any of the expected types
-
-        # Start the normalization process from the root structure
-        return normalize_object(self.structure)
-
-    def __getitem__(self, key):
-        """
-        This allows accessing the normalized structure using the bracket syntax
-        Example: configset["interfaces"]["wan"].ipaddr
-        """
-        return self.normalized_structure[key]
 
 def test_init(sample_config_path):
 
     test = ConfigSet(xml_string=TEST_XML)
 
     # test single objects
-    assert test.structure.children[0].children[0].hostname == "test_name"
-    assert test.structure.children[0].children[0].timezone == "test_timezone"
 
-    # test list objects
-    assert test.structure.children[1].children[0].children[0].ipaddr == "dhcp"
-    assert test.structure.children[1].children[0].children[0].blockbogons == "1"
+    assert test.structure.system.hostname == "test_name"
+    assert test.structure.system.timezone == "test_timezone"
 
-    assert test.structure.children[1].children[1].children[0].ipaddr == "192.168.56.10"
-    assert test.structure.children[1].children[1].children[0].blockbogons == "1"
+    assert test.structure.interfaces.wan.ipaddr == "dhcp"
+    assert test.structure.interfaces.wan.blockbogons == "1"
 
-    # Test normalized access
-    assert test["system"]["hostname"] == "test_name"
-    assert test["system"]["timezone"] == "test_timezone"
-    assert test["interfaces"]["wan"]["ipaddr"] == "dhcp"
-    assert test["interfaces"]["wan"]["blockbogons"] == "1"
+    assert test.structure.interfaces.lan.ipaddr == "192.168.56.10"
+    assert test.structure.interfaces.lan.blockbogons == "1"
+
+
+    test.structure.interfaces.lan.descr == "dini meer"
+
