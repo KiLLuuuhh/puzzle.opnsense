@@ -1171,6 +1171,7 @@ class ConfigSet:
     def __init__(self, xml_string):
         self.root = self._load_config(xml_string)
         self.structure = self._parse_elements(self.root)
+        self.normalized_structure = self._normalize()
 
     def _load_config(self, xml_string: str):
         # Parse the XML string and return the root element
@@ -1200,11 +1201,60 @@ class ConfigSet:
 
         return parent_obj
 
+    def _normalize(self):
+        """
+        Normalize the structure to a dictionary-like format for easy access.
+        This allows access like configset["interfaces"]["wan"].ipaddr.
+        """
+        def normalize_object(obj):
+            if isinstance(obj, GenericChildClass):  # Leaf node
+                return obj.text
+            elif isinstance(obj, ParentWithChildrenAsKwargs):  # Parent with kwargs
+                normalized = {}
+                # Iterate over all attributes of ParentWithChildrenAsKwargs
+                for key, value in obj.__dict__.items():
+                    # Normalize nested objects recursively
+                    normalized[key] = value
+                return normalized
+            elif isinstance(obj, GenericParentClass):  # Parent without kwargs
+                normalized = {}
+                for child in obj.children:
+                    if isinstance(child, ParentWithChildrenAsKwargs):
+                        # Process the child as a dictionary directly (as it has attributes instead of a `tag`)
+                        normalized.update(normalize_object(child))
+                    else:
+                        # Process normally (i.e., for GenericChildClass or other objects with .tag attribute)
+                        normalized[child.tag] = normalize_object(child)
+                return normalized
+            return None  # In case the object doesn't match any of the expected types
+
+        # Start the normalization process from the root structure
+        return normalize_object(self.structure)
+
+    def __getitem__(self, key):
+        """
+        This allows accessing the normalized structure using the bracket syntax
+        Example: configset["interfaces"]["wan"].ipaddr
+        """
+        return self.normalized_structure[key]
+
 def test_init(sample_config_path):
 
     test = ConfigSet(xml_string=TEST_XML)
 
+    # test single objects
     assert test.structure.children[0].children[0].hostname == "test_name"
     assert test.structure.children[0].children[0].timezone == "test_timezone"
+
+    # test list objects
     assert test.structure.children[1].children[0].children[0].ipaddr == "dhcp"
     assert test.structure.children[1].children[0].children[0].blockbogons == "1"
+
+    assert test.structure.children[1].children[1].children[0].ipaddr == "192.168.56.10"
+    assert test.structure.children[1].children[1].children[0].blockbogons == "1"
+
+    # Test normalized access
+    assert test["system"]["hostname"] == "test_name"
+    assert test["system"]["timezone"] == "test_timezone"
+    assert test["interfaces"]["wan"]["ipaddr"] == "dhcp"
+    assert test["interfaces"]["wan"]["blockbogons"] == "1"
