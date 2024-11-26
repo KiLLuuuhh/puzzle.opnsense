@@ -15,6 +15,7 @@ from typing import List, Dict
 from unittest.mock import patch, MagicMock
 from xml.etree.ElementTree import Element
 from xml.etree import ElementTree
+import xml.etree.ElementTree as ET  # Import the module
 
 import pytest
 from ansible_collections.puzzle.opnsense.plugins.module_utils.config_utils import (
@@ -1149,6 +1150,8 @@ TEST_XML: str = """<?xml version="1.0"?>
 
 
 class GenericNodeClass:
+    children = []
+
     def __init__(self, tag, text=None):
         self.tag = tag
         self.text = text if text is not None else ""  # Handle None as empty string
@@ -1170,11 +1173,89 @@ class GenericNodeClass:
 
         raise AttributeError(f"object has no Attribute with the name {key}")
 
+    def __setattr__(self, key, value):
+        """
+        Sets the attribute, creating a GenericNodeClass instance if necessary.
+        """
+
+        # Directly assign internal attributes to avoid recursion
+        if key in ("tag", "text", "children"):
+            self.__dict__[key] = value  # Bypass __setattr__
+        else:
+            # Handle dynamically creating children nodes if the key doesn't exist
+            if isinstance(value, str):
+                for child in self.children:
+                    if child.tag == key:
+                        child.text = value  # Update existing text
+                        return
+                # Create new child if it doesn't exist
+                self.add_child(GenericNodeClass(key, value))
+            else:
+                # For non-string values, use the default behavior
+                super().__setattr__(key, value)
+
+
 
 class ConfigSet:
-    def __init__(self, xml_string):
+    def __init__(self, xml_string, module_name: str, config_context_names: List[str],):
+        self._module_name = module_name
+        self._config_contexts = config_context_names
+        self.opnsense_version = "OPNsense Test" #version_utils.get_opnsense_version()
         self.root = self._load_config(xml_string)
         self.structure = self._parse_elements(self.root)
+
+        # check if module exists in VERSION_MAP
+        if self._module_name in TEST_VERSION_MAP[self.opnsense_version]:
+            self.php_requirements = TEST_VERSION_MAP[self.opnsense_version][self._module_name]["php_requirements"]
+            self.configure_function = TEST_VERSION_MAP[self.opnsense_version][self._module_name]["configure_functions"]
+
+    def to_xml_element(self, node):
+        # Convert GenericNodeClass back to an XML element
+        element = Element(node.tag)
+        if node.text:
+            element.text = node.text
+
+        # Recursively process child nodes
+        for child in node.children:
+            #if child.text == "LAN":
+            #    raise Exception(child.text)
+            element.append(self.to_xml_element(child))
+
+        return element
+
+    def save_to_xml(self, file_path):
+        # Convert the root structure back to an XML element
+        root_element = self.to_xml_element(self.structure)
+        tree = ElementTree(root_element)
+
+        # Save the XML to a file
+        tree.write(file_path, encoding="utf-8", xml_declaration=True)
+
+    def get_xml_string(self):
+        # Return the XML as a string instead of saving to a file
+        root_element = self.to_xml_element(self.structure)
+        return ET.tostring(root_element, encoding="utf-8", method="xml").decode("utf-8")
+
+    def get_setting_by_xpath(self, key: str):
+        # Check if the key exists in the version map for this module
+        if key in TEST_VERSION_MAP[self.opnsense_version][self._module_name]:
+            # Split the path into individual parts
+            return_path = TEST_VERSION_MAP[self.opnsense_version][self._module_name][key].split("/")
+            current_node = self.structure  # Start from the root structure
+
+            # Traverse each part of the path
+            for entry in return_path:
+                # Attempt to move deeper into the structure
+                if hasattr(current_node, entry):
+                    current_node = getattr(current_node, entry)
+                else:
+                    raise AttributeError(f"Attribute '{entry}' not found in configuration structure")
+
+            # Return the final resolved node after traversal
+            return current_node
+        else:
+            raise KeyError(f"Key '{key}' not found in version map")
+
 
     def _load_config(self, xml_string: str):
         # Parse the XML string and return the root element
@@ -1195,12 +1276,14 @@ class ConfigSet:
 
         return parent_obj
 
+
 def test_init(sample_config_path):
 
-    test = ConfigSet(xml_string=TEST_XML)
+    test = ConfigSet(xml_string=TEST_XML, module_name="interfaces_assignments", config_context_names=[''])
 
     # test single objects
 
+    assert test.get_setting_by_xpath("interfaces").wan.ipaddr == "dhcp"
     assert test.structure.system.hostname == "test_name"
     assert test.structure.system.timezone == "test_timezone"
 
@@ -1211,5 +1294,16 @@ def test_init(sample_config_path):
     assert test.structure.interfaces.lan.blockbogons == "1"
 
 
-    test.structure.interfaces.lan.descr == "dini meer"
 
+def test_save_xml():
+    test = ConfigSet(xml_string=TEST_XML, module_name="interfaces_assignments", config_context_names=[''])
+
+    # Modify some values
+    test.structure.interfaces.lan.descr = "test_descr"
+    assert test.structure.interfaces.lan.descr == "test_descr"
+
+    assert "test_descr" in test.get_xml_string()
+
+
+    # Save the modified configuration to a file
+    test.save_to_xml("output_config.xml")
